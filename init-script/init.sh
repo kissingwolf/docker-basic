@@ -1,5 +1,5 @@
 #!/bin/bash
-Docker_Yumrepo_file=
+Docker_Yumrepo_file='https://raw.githubusercontent.com/kissingwolf/docker-basic/master/init-script/docker.repo'
 
 if [ $(whoami) ! = 'root' ] ; then 
 	echo " Mast run as root "
