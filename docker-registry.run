@@ -1,0 +1,9 @@
+#!/bin/bash
+docker run \
+	-d \
+	--name uplooking_docker_registry --restart=always \
+	-e SETTINGS_FLAVOUR=dev \
+	-v /registry-storage:/var/lib/registry \
+	-u root \
+	-p 5000:5000 \
+	registry:2.4.1
