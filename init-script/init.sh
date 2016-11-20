@@ -1,4 +1,5 @@
 #!/bin/bash
+#Docker_Yumrepo_file='https://classroom.example.com/materials/docker.repo'
 Docker_Yumrepo_file='https://raw.githubusercontent.com/kissingwolf/docker-basic/master/init-script/docker.repo'
 
 if [ $(whoami) ! = 'root' ] ; then 
