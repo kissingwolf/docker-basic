@@ -433,3 +433,462 @@ $ docker-compose scale web=3 db=2
 
 格式为 `docker-compose version`。
 
+## Docker Compose 配置文件说明
+
+Docker Compose 配置文件格式为YAML，用以定义`services`、`networks`和`volumes`。默认文件名和路径为`./docker-compose.yml`。配置文件的扩展名可以是`yml`也可以是`yaml`，两者都能够正常识别。
+
+Docker Compose配置文件中定义的`services`字段将传递给`docker`命令执行容器的创建，同时`network`和`volume`字段定义的部分也会调用相应的`docker network create`和`docker volume create`命令创建。
+
+Docker Compose配置文件中可以使用系统Shell中定义的环境变量，引用方式类似Shell Script中的`${VAR}`。
+
+### Service 字段配置
+
+Docker Compose 配置文件目前有两种版本格式：
+
+* `version 1`:  已经被废弃， 其配置内不支持`volumes` 和 `networks`字段，默认`version` 关键字省略。
+* `version 2`：目前支持的最新版本是2.1，普遍使用版本是2，需要在配置文件开始处声明`version: "2"`。
+
+在`version 1`中，每个顶级元素为服务名称，次级元素为服务容器的配置信息，例如:
+
+```
+webapp:
+  image: examples/web
+  ports:
+    - "80:80"
+  volumes:
+    - "/data"
+```
+
+在`version 2`中，扩展了语法关键字，除了可以声明`networks`和`volumes`外，与`version 1`最大的区别是添加了版本信息，并且需要将说有服务定义放置在`services`字段下，例如：
+
+```yaml
+version: "2"
+services:
+  webapp:
+    image: examples/web
+    ports:
+      - "80:80"
+    volumes:
+      - "/data"
+```
+
+#### build 关键字
+
+在构建时应用的配置选项。
+
+可以直接使用路径传入构建容器的目录，也可以通过传入[context](https://docs.docker.com/compose/compose-file/#context)、[dockerfile](https://docs.docker.com/compose/compose-file/#dockerfile)和[args](https://docs.docker.com/compose/compose-file/#args)对象进一步配置，  `dockerfile`和`args`两个对象是可选配置。
+
+直接传入路径：
+
+```yaml
+build： ./dir
+```
+
+传入配置对象：
+
+```yaml
+build:
+  context: ./dir
+  dockerfile: Dockerfile-alternate
+  args:
+    buildno: 1
+```
+
+如果指定`image`关键字, 那么`Docker Compose`会基于镜像名`imagename`和可选的版本标签`tag`来构建镜像。
+
+```yaml
+build: ./dir
+image: imagename:tag
+```
+
+上面的指令会生成一个基于`./dir`镜像名称为`imagename`，版本标签为`tag`的镜像。
+
+> 在 `version 1` 格式的文件里，两种方式是不同的 1. 仅支持字符串形式： `build: .`， 不支持对象形式。 2. 不能同时使用`build`和`image`, 如果尝试这么做的话会导致错误。
+
+##### context 关键字
+
+> 只支持`version 2` , `version 1` 只能使用`build：.`
+
+`context` 值可以是一个目录路径，也可以是一个git 网络地址`git repository url`。
+当所提供的值是相对路径的时候，它被解释为docker-compose文件位置的相对路径。目录里的信息会被当做构建内容发送到Docker daemon。
+
+```yaml
+build:
+  context: ./dir
+```
+
+##### dockerfile 关键字
+
+指定dockerfile文件名称。
+
+Docker Compose 将会使用此文件去构建镜像，但必须指定`build`路径。如：
+
+```yaml
+build:
+  context: .
+  dockerfile: Dockerfile-alternate
+```
+
+##### args 关键字
+
+> 仅支持 `version 2`
+
+其目的是与Dockerfile文件联用，添加构建环境变量的参数，但此环境变量仅构建过程期间可以使用。如在Dockerfile中配置如下：
+
+```Dockerfile
+ARG buildno
+ARG password
+
+RUN echo "Build number: $buildno"
+RUN script-requiring-password.sh "$password"
+```
+
+`args`关键字可以使用 mapping 或 list两种数据结构定义:
+
+mapping数据方式：
+```yaml
+build:
+  context: .
+  args:
+    buildno: 1
+    password: secret
+```
+
+list 数据方式：
+```yaml
+build:
+  context: .
+  args:
+    - buildno=1
+    - password=secret
+```
+> YAML 格式的Boolean值（true、false、yes、no、on和off）必须用双引号修饰，否则程序无法识别。
+
+#### cap_add 和 cap_drop 关键字
+
+指定容器的内核能力（capacity）分配。具体看参见`man 7 capabilities`。
+
+例如，让容器拥有所有能力可以指定为：
+
+```yaml
+cap_add:
+  - ALL
+```
+
+去掉 NET_ADMIN 能力可以指定为：
+
+```yaml
+cap_drop:
+  - NET_ADMIN
+```
+
+Capabilities是Linux 2.2 内核引入的，它将root用户的权限细分为不同的领域，可以分别启用或禁用。从而在实际进行特权操作时，如果euid不是root，便会检查是否具有该特权操作所对应的capabilities，并以此为依据决定是否可以执行特权操作。
+
+#### command 关键字
+
+覆盖容器启动后默认执行的命令。
+
+有两种写法：
+
+```yaml
+command: bundle exec thin -p 3000
+```
+
+和
+
+```yaml
+command: [bundle, exec, thin, -p, 3000]
+```
+
+#### cgroup_parent 关键字
+
+指定父 cgroup 组，意味着将继承该组的资源限制。
+
+例如，有一个已知 cgroup 组名称为 `all_cgroups`，此处继承其配置。
+
+```yaml
+cgroup_parent: all_cgroups
+```
+
+#### container_name 关键字
+
+指定容器名称。默认使用 `项目名称_服务名称_序号` 这样的格式。
+
+例如：
+
+```yaml
+container_name: my-web-container
+```
+
+注意，指定容器名称后，该服务将无法进行扩展（scale），因为 Docker 不允许多个容器具有相同的名称。
+
+#### devices 关键字
+
+指定设备映射关系。
+
+例如：
+
+```yaml
+devices:
+  - "/dev/ttyUSB1:/dev/ttyUSB0"
+```
+
+#### depends_on 关键字
+
+表示服务之间的依赖关系， 有两个影响：
+
+- `docker-compose up` 将会根据依赖关系的顺序开启所有服务，下面的例子中, `db`和`redis`会早于`web`服务先启动。
+- `docker-compose up SERVICE` 会自动包含`SERVICE`的依赖，下面的例子中，`docker-compose up web`将会创建，同时也会启动`db`和`redis`服务。
+
+```yaml
+version: '2'
+services:
+  web:
+    build: .
+    depends_on:
+      - db
+      - redis
+  redis:
+    image: redis
+  db:
+    image: mysql
+```
+
+> web 服务启动前并不会等待db和redis到ready状态才启动。如果需要等待其他服务到ready状态，可以参考[Controlling startup order](https://docs.docker.com/compose/startup-order/) ，配置其内部脚本判断依赖服务是否正常可连接，然后在启动本地进程。
+
+#### dns 关键字
+
+自定义 DNS 服务器。可以是一个值，也可以是一个列表。
+
+```yaml
+dns: 8.8.8.8
+```
+
+```yaml
+dns:
+  - 8.8.8.8
+  - 114.114.114.114
+```
+
+#### dns_search 关键字
+
+配置 DNS 搜索域。可以是一个值，也可以是一个列表。
+
+```yaml
+dns_search: example.com
+```
+
+```yaml
+dns_search:
+  - domain1.example.com
+  - domain2.example.com
+```
+
+#### tmpfs 关键字
+
+> 仅在`version 2`版本以上有效。
+
+在容器内挂接tmpfs文件系统，可以是一个值，也可以是一个列表。
+
+```yaml
+tmpfs: /run
+```
+
+```yaml
+tmpfs:
+  - /run
+  - /tmp
+```
+
+#### entrypoint 关键字
+
+覆盖默认的entrypoint（容器执行进程或脚本）。可以是一个值，也可以是一个列表。
+
+```yaml
+entrypoint: /code/entrypoint.sh
+```
+
+```yaml
+entrypoint:
+    - php
+    - -d
+    - zend_extension=/usr/local/lib/php/extensions/no-debug-non-zts-20100525/xdebug.so
+    - -d
+    - memory_limit=-1
+    - vendor/bin/phpunit
+```
+
+> 在Docker Compose配置文件中定义的`entrypoint`将覆盖原服务中容器`Dockerfile`配置文件中的`ENTERYPOINT`关键字的定义，同时也将使容器中`CMD`定义的内容被忽略。
+
+#### env_file 关键字
+
+从文件中获取环境变量，可以是单独的文件路径或者是一个文件路径列表。
+
+如果通过 `docker-compose -f FILE` 方式来指定 Compose 模板文件，则 `env_file` 中变量的路径会基于模板文件路径。
+
+如果有变量名称与 `environment` 指令冲突，则按照惯例，以后者为准。
+
+```yaml
+env_file: .env
+```
+
+```yaml
+env_file:
+  - ./common.env
+  - ./apps/web.env
+  - /opt/secrets.env
+```
+
+环境变量文件中每一行必须符合格式，支持 `#` 开头的注释行，`.env`文件类似如下内容。
+
+```shell
+# Set Rails/Rack environment
+PROG_ENV=development
+```
+设置环境变量。你可以使用数组或字典两种格式。
+
+只给定名称的变量会自动获取运行 Docker Compose 主机上对应变量的值，可以用来防止泄露不必要的数据。
+
+可以使用mapping方式，例如:
+
+```yaml
+environment:
+  RACK_ENV: development
+  SESSION_SECRET:
+```
+
+或者使用list方式，例如:
+
+```yaml
+environment:
+  - RACK_ENV=development
+  - SESSION_SECRET
+```
+
+注意，如果变量名称或者值中用到 `true|false，yes|no` 等表达布尔含义的词汇，最好放到引号里，避免 YAML 自动解析某些内容为对应的布尔语义。
+
+`http://yaml.org/type/bool.html` 中给出了这些特定词汇，包括:
+
+```yaml
+ y|Y|yes|Yes|YES|n|N|no|No|NO
+|true|True|TRUE|false|False|FALSE
+|on|On|ON|off|Off|OFF
+```
+
+#### expose 关键字
+
+对外暴露端口，但不是暴露给host机器的，而是对已经 linked 的service可访问。
+
+```yaml
+expose:
+ - "3000"
+ - "8000"
+```
+
+#### extends 关键字
+
+基于其它模板文件进行扩展。
+
+例如我们已经有了一个 webapp 服务，定义一个基础模板文件为 `common.yml`。
+
+```
+# common.yml
+webapp:
+  build: ./webapp
+  environment:
+    - DEBUG=false
+    - SEND_EMAILS=false
+
+```
+
+再编写一个新的 `development.yml` 文件，使用 `common.yml` 中的 webapp 服务进行扩展。
+
+```
+# development.yml
+web:
+  extends:
+    file: common.yml
+    service: webapp
+  ports:
+    - "8000:8000"
+  links:
+    - db
+  environment:
+    - DEBUG=true
+db:
+  image: mysql
+```
+
+后者会自动继承 common.yml 中的 webapp 服务及环境变量定义。
+
+使用 extends 需要注意：
+
+- 要避免出现循环依赖，例如 `A 依赖 B，B 依赖 C，C 反过来依赖 A` 的情况。
+- extends 不会继承 `links` 和 `volumes_from` 中定义的容器和数据卷资源。
+
+一般的，推荐在基础模板中只定义一些可以共享的镜像和环境变量，在扩展模板中具体指定应用变量、链接、数据卷等信息。
+
+#### external_links 关键字
+
+链接到 docker-compose.yml 外部的容器，甚至并非 `Docker Compose` 管理的外部容器。参数格式跟 `links` 类似。格式为`[CONTAINER:ALIAS](容器名：别名)`
+
+```
+external_links:
+ - redis_1
+ - project_db_1:mysql
+ - project_db_1:postgresql
+```
+
+#### extra_hosts 关键字
+
+类似 Docker 中的 `--add-host` 参数，指定额外的 host 名称映射信息。
+
+例如：
+
+```
+extra_hosts:
+ - "somehost:162.242.195.82"
+ - "kissingwolf.com:118.193.241.38"
+```
+
+会在启动后的服务容器中 `/etc/hosts` 文件中添加如下两条条目。
+
+```
+162.242.195.82  somehost
+118.193.241.38  kissingwolf.com
+```
+
+#### group_add 关键字
+
+为容器添加指定的用户组，可以是组名，也可以是组id，其目的是为了保证多个容器在使用不同用户运行容器内进程时，可以读写同一寄主系统文件。实现方法是调用`Docker`的`--group-add`参数完成。
+
+例如：
+
+```yaml
+version: '2'
+services:
+    image: alpine
+    group_add:
+      - mail
+```
+
+#### image 关键字
+
+指定要启动容器的镜像，可以是`repository/tag`或`image ID`
+
+```
+image: redis
+image: ubuntu:14.04
+image: kissingwolf/busybox
+image: registry.example.com:4000/nginx
+image: a4bc65fd
+```
+
+镜像文件不存在，Docker Compose会尝试去远端拉取。
+
+#### isolation 关键字
+
+> 仅`version 2.1`版本支持。
+
+指定容器的隔离技术。Linux 仅支持参数`default`，Windows支持参数`default`、`process`和`hyperv`。具体可以查看[Docker Engine docs](https://docs.docker.com/engine/reference/commandline/run/#specify-isolation-technology-for-container---isolation) 文档。
+
