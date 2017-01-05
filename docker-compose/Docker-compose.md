@@ -892,3 +892,300 @@ image: a4bc65fd
 
 指定容器的隔离技术。Linux 仅支持参数`default`，Windows支持参数`default`、`process`和`hyperv`。具体可以查看[Docker Engine docs](https://docs.docker.com/engine/reference/commandline/run/#specify-isolation-technology-for-container---isolation) 文档。
 
+#### labels 关键字
+
+为容器添加 Docker 元数据（metadata）信息。例如可以为容器添加辅助说明信息。
+
+可以使用mapping方式，例如：
+
+```yaml
+labels:
+  com.example.description: "Accounting webapp"
+  com.example.department: "Finance"
+  com.example.label-with-empty-value: ""
+```
+
+也可以使用list方式，例如：
+
+```yaml
+labels:
+  - "com.example.description=Accounting webapp"
+  - "com.example.department=Finance"
+  - "com.example.label-with-empty-value"
+```
+
+#### links 关键字
+
+链接到其它服务中的容器。使用服务名称或服务名称：服务别名 `（SERVICE:ALIAS）` 格式。
+
+```yaml
+web:
+  links:
+   - db
+   - db:database
+   - redis
+```
+
+`links`也表达`depends_on`一样的依赖关系，他们决定服务的启动顺序。
+
+使用的服务名（别名）将会自动在服务容器中的 `/etc/hosts` 里创建ip和服务名（别名）的对用关系。例如：
+
+```bash
+172.17.4.123  db
+172.17.4.123  database
+172.17.4.124  redis
+```
+
+被链接容器中相应的环境变量也将被创建。
+
+> 链接的多个服务之间必须有共同的网络。
+
+#### logging 关键字
+
+> `logging`关键字只支持`version 2`，在`version 1`中使用`log_driver`和`log_opt`
+
+服务的日志配置。
+
+```yaml
+logging:
+  driver: syslog
+  options:
+    syslog-address: "tcp://192.168.0.42:123"
+```
+
+有两个子关键字`driver`和`options`，不同的`driver`会有不同的`options`。此关键字是`Docker`的`—log-driver`和`--log-opt`的实现。具体参考[Docker 官方文档](https://docs.docker.com/engine/reference/logging/overview/)。
+
+>`driver`为`json-file`和`journald`时通过`docker-compose logs`能够查看到日志，其他`driver`设置是无法查看的。
+
+#### log_driver 关键字
+
+> 仅在`version 1`中支持。
+
+类似 Docker 中的 `--log-driver` 参数，指定日志驱动类型，默认是`json-file`。
+
+```yaml
+log_driver: "syslog"
+```
+
+#### log_opt 关键字
+
+> 仅在`version 1`中支持。
+
+日志驱动的相关参数。
+
+例如
+
+```yaml
+log_driver: "syslog"
+log_opt:
+  syslog-address: "tcp://192.168.0.42:123"
+```
+
+#### net 关键字
+
+> 仅在`version 1`中支持。`version 2`中使用`network_mode`关键字。
+
+设置网络模式。使用和 `Docker`命令 的 `--net` 参数一样的值。如果是容器网络格式为`container:[service name or container name/id]`
+
+```yaml
+net: "bridge"
+net: "none"
+net: "container:[service name or container name/id]"
+net: "host"
+```
+
+#### network_mode 关键字
+
+> 仅在`version 2`中支持。`version 1`中使用`net`关键字。
+
+设置网络模式。使用和 `Docker`命令 的 `--net` 参数一样的值。增加了对服务网络的支持: `service:[service name]`
+
+```yaml
+network_mode: "bridge"
+network_mode: "host"
+network_mode: "none"
+network_mode: "container:[container name/id]"
+network_mode: "service:[service name]"
+```
+
+#### networks 关键字
+
+> 仅在`version 2`中支持。`version 1`中使用`net`关键字。
+
+加入网络，支持全局`networks`关键字设置的网络。
+
+```yaml
+services:
+  some-service:
+    networks:
+     - some-network
+     - other-network
+```
+
+##### aliases 关键字
+
+`network`下的子关键字`aliases`用来设置服务中容器别名。其他容器可以在相同的网络中通过设置的别名来连接到此容器。
+
+`aliases`设置的生效范围是基于网络的，也就是说同一服务在不同的网络中可以使用不同的别名。
+
+例如：
+
+```yaml
+services:
+  some-service:
+    networks:
+      some-network:
+        aliases:
+         - alias1
+         - alias3
+      other-network:
+        aliases:
+         - alias2
+```
+
+具体实现可以参看如下的例子，在此docker-compose.yml配置文件中，设置了两个网络`new`和`legacy`，三个服务`web`、`worker`和`db`。在`new`网络中`db`服务被识别为`database`别名，在`legacy`网络中`db`服务被识别为`mysql`。
+
+```yaml
+version: '2'
+
+services:
+  web:
+    build: ./web
+    networks:
+      - new
+
+  worker:
+    build: ./worker
+    networks:
+    - legacy
+
+  db:
+    image: mysql
+    networks:
+      new:
+        aliases:
+          - database
+      legacy:
+        aliases:
+          - mysql
+
+networks:
+  new:
+  legacy:
+```
+
+##### ipv4\_address和ipv6\_address 关键字
+
+指定为这个服务容器加入网络时设置一个静态IPv4和IPv6地址。
+
+```yaml
+version: '2'
+
+services:
+  app:
+    image: busybox
+    command: ifconfig
+    networks:
+      app_net:
+        ipv4_address: 172.16.238.10
+        ipv6_address: 2001:3984:3989::10
+
+networks:
+  app_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.238.0/24
+        gateway: 172.16.238.1
+      - subnet: 2001:3984:3989::/64
+        gateway: 2001:3984:3989::1
+```
+
+设置服务中容器的静态网络需要全局`networks`支持。要设置IPv6地址，需要全局`networks`中`com.docker.network.enable_ipv6`设置为`true`。同时需要设置`ipam`包括子网和网关信息。
+
+##### link\_local\_ips 关键字
+
+> 在`version 2.1`中添加。
+
+设置服务容器直接连接到寄主机网桥上的静态IP组，通常依赖于你现实中的架构部署。
+
+例如：
+
+```yaml
+version: '2.1'
+services:
+  app:
+    image: busybox
+    command: top
+    networks:
+      app_net:
+        link_local_ips:
+          - 57.123.22.11
+          - 57.123.22.13
+networks:
+  app_net:
+    driver: bridge
+```
+
+#### pid 关键字
+
+跟主机系统共享进程命名空间。打开该选项的容器之间，以及容器和宿主机系统之间可以通过进程 ID 来相互访问和操作。
+
+```yaml
+pid: "host"
+```
+
+#### port 关键字
+
+暴露端口。既可以是`HOST:CONTAINER`，也可以只写容器端口，host端口会随机选取。
+
+> 当以`HOST:CONTAINER`的形式映射端口的时候，当容器的端口低于60的时候可能会遇到错误，因为YAML会解析`xx:yy`为60进制的数字。 基于这个原因，我们推荐明确指定端口映射用字符串的形式。
+
+```
+ports:
+ - "3000"
+ - "3000-3005"
+ - "8000:8000"
+ - "9090-9091:8080-8081"
+ - "49100:22"
+ - "127.0.0.1:8001:8001"
+ - "127.0.0.1:5000-5010:5000-5010"
+```
+
+#### security\_opt 关键字
+
+指定容器模板标签（label）机制的默认属性（用户、角色、类型、级别等）。
+
+例如配置标签的用户名和角色名。
+
+```
+security_opt:
+    - label:user:USER
+    - label:role:ROLE
+```
+
+#### stop\_signal 关键字
+
+设置另一个进程信号用以停止容器。在默认情况下Docker使用SIGTERM信号停止容器。
+
+````yaml
+stop_signal: SIGUSR1
+````
+
+#### ulimits 关键字
+
+指定容器的 ulimits 限制值。
+
+例如，指定最大进程数为 65535，指定文件句柄数为 20000（软限制，应用可以随时修改，不能超过硬限制） 和 40000（系统硬限制，只能 root 用户提高）。
+
+```yaml
+  ulimits:
+    nproc: 65535
+    nofile:
+      soft: 20000
+      hard: 40000
+```
+
