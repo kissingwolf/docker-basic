@@ -1189,3 +1189,319 @@ stop_signal: SIGUSR1
       hard: 40000
 ```
 
+#### volumes 关键字
+
+数据卷所挂载路径设置。可以设置宿主机路径 （`HOST:CONTAINER`） 或加上访问模式 （`HOST:CONTAINER:ro`）。
+
+> `version 2 `中可以调用上级`volumes`关键字定义的外部卷，`version 1`中只能使用本地卷
+
+该指令中路径支持相对路径。例如：
+
+```yaml
+volumes:
+  # Just specify a path and let the Engine create a volume
+  - /var/lib/mysql
+
+  # Specify an absolute path mapping
+  - /opt/data:/var/lib/mysql
+
+  # Path on the host, relative to the Compose file
+  - ./cache:/tmp/cache
+
+  # User-relative path
+  - ~/configs:/etc/configs/:ro
+
+  # Named volume
+  - datavolume:/var/lib/mysql
+```
+
+#### volumes_driver 关键字
+
+> `version 2` 中支持数据卷的插件驱动。
+
+用户可以先使用第三方驱动创建一个数据卷，然后使用名称来访问它。
+
+此时，可以通过 `volumes_driver` 来指定驱动。
+
+```yaml
+volume_driver: mydriver
+```
+
+#### volumes\_from 关键字
+
+从另一个服务或容器挂载它的数据卷。
+
+例如：
+
+```yaml
+volumes_from:
+ - service_name
+ - service_name:ro
+ - container:container_name
+ - container:container_name:rw
+```
+
+可以指定挂接方式，`ro`为只读方式，`rw`为读写方式，默认没有指定方式时为`rw`方式。
+
+#### 其它关键字
+
+此外，还有包括 `cpu_shares, cpuset, domainname, hostname, ipc, mac_address, mem_limit, memswap_limit, privileged, read_only, restart, stdin_open, tty, user, working_dir` 等指令，基本跟 docker-run 中对应参数的功能一致。
+
+例如，指定使用 cpu 核 0 和 核 1，只用 50% 的 CPU 资源：
+
+```Yaml
+cpu_quota: 50000
+cpuset: 0,1
+```
+
+指定容器中运行应用的用户名。
+
+```yaml
+user: nginx
+```
+
+指定容器中工作目录。
+
+```yaml
+working_dir: /code
+```
+
+指定容器中搜索域名、主机名、mac 地址等。
+
+```yaml
+domainname: your_website.com
+hostname: test
+mac_address: 08-00-27-00-0C-0A
+```
+
+指定容器中进程通讯
+
+```yaml
+ipc: host
+```
+
+指定容器中内存和内存交换区限制都为 1G。
+
+```yaml
+mem_limit: 1g
+memswap_limit: 1g
+```
+
+允许容器中运行一些特权命令。
+
+```yaml
+privileged: true
+```
+
+指定容器退出后的重启策略为始终重启。该命令对保持服务始终运行十分有效，在生产环境中推荐配置为 `always` 或者 `unless-stopped`。
+
+```yaml
+restart: always
+```
+
+以只读模式挂载容器的 root 文件系统，意味着不能对容器内容进行修改。
+
+```yaml
+read_only: true
+```
+
+打开标准输入，可以接受外部输入。
+
+```yaml
+stdin_open: true
+```
+
+模拟一个假的远程控制台。
+
+```yaml
+tty: true
+```
+
+### volumes 字段配置
+
+虽然动态卷声明可以作为服务声明的一部分出现，这`version 2`的全局`volumes`字段配置允许你创建独立卷名，并跨多个服务可重用的的公共卷，并可以借助`Docker`命令行或API很容易检索和检查。具体进一步的配置可以参看[docker volume](https://docs.docker.com/engine/reference/commandline/volume_create/)文档获得更多信息。
+
+#### driver 关键字
+
+指定用于驱动本卷的卷驱动类型。默认为`local`。如果驱动是不可用，`Docker`引擎将返回一个错误。`Docker`第三方`volumes plugin`很多，具体可以参见[Volume plugins](https://docs.docker.com/engine/extend/legacy_plugins/) 。
+
+例如：
+
+```yaml
+driver: local
+```
+
+#### driver\_opts  关键字
+
+指定一个选项键值对列表为参数传递给`driver`用于设置并驱动卷。为可选的配置，根据不同的`driver`会有所不同。
+
+```yaml
+ driver_opts:
+   foo: "bar"
+   baz: 1
+```
+
+#### external 关键字
+
+如果设置为`true`，指定卷在`Docker Compose`之外创建。`docker-compose up `命令在执行时不会试图创建它，但如果访问时无法连接，将会抛出一个错误。
+
+例如：
+
+```yaml
+version: '2'
+
+services:
+  db:
+    image: postgres
+    volumes:
+      - data:/var/lib/postgresql/data
+
+volumes:
+  data:
+    external: true
+```
+
+`data`卷就是一个外部使用`docker volume create` 命令或`Docker API`创建的卷，在执行`docker-compose up`命令时，将在服务`db`中挂接在`postrges`镜像创建的容器中`/var/lib/postgresql/data`目录位置上。
+
+#### labels 关键字
+
+> `version 2.1` 新增关键字
+
+为容器元数据添加[`Docker labels`标签](https://docs.docker.com/engine/userguide/labels-custom-metadata/)，可以是数组也可以是字典。
+
+建议使用反向dns符号来阻止你的标签和其他软件有冲突。
+
+例如：
+
+```yaml
+labels:
+  com.example.description: "Database volume"
+  com.example.department: "IT/Ops"
+  com.example.label-with-empty-value: ""
+
+labels:
+  - "com.example.description=Database volume"
+  - "com.example.department=IT/Ops"
+  - "com.example.label-with-empty-value"
+```
+
+### networks 字段配置
+
+顶级网络关键允许你指定要创建网络。完整的解释可以参考`Docker`网络功能部分，具体参看[Networking guide](https://docs.docker.com/compose/networking/)。
+
+#### driver 关键字
+
+指定使用何种驱动生成网络。默认驱动程序决于本地`Docker`引擎配置，大多数情况下，单机的`Docker`环境默认为`bridge`，`Swarm`多机环境下默认为`overlay`。
+
+如果指定的driver不可用，`Docker`将返回一个错误。
+
+例如：
+
+```yaml
+driver: overlay
+```
+
+#### driver\_opts 关键字
+
+一个可选参数关键字，主要是为了将`driver`定义的驱动相关参数传递到`Docker`。根据不同的`driver`会有所不同。
+
+例如：
+
+```yaml
+  driver_opts:
+    foo: "bar"
+    baz: 1
+```
+
+#### enable\_ipv6 关键字
+
+> `version 2.1`新增关键字。
+
+在网络中打开IPv6。
+
+#### ipam 关键字
+
+IPAM（IP address mangement) 网络地址管理，此关键字指定自定义网络配置。
+
+这个对象关键字包含几个属性关键字，每一个属性关键字都是可选的：
+
+* `driver`：自定义IPAM驱动，默认为default。
+* `config`：配置列表，包含一个或多个配置块，包含如下自配置项
+  * `subnet`：CIDR格式的子网,代表一个网段
+  * `ip_range`：分配给容器的地址范围
+  * `gateway`：分配给容器的默认网关，可以是IPv4也可以是IPv6
+  * `aux_addresses`：辅助网络驱动程序所使用的IPv4和IPv6地址，ß从主机名映射到IP
+
+例如：
+
+```yaml
+ipam:
+  driver: default
+  config:
+    - subnet: 172.28.0.0/16
+      ip_range: 172.28.5.0/24
+      gateway: 172.28.5.254
+      aux_addresses:
+        host1: 172.28.1.5
+        host2: 172.28.1.6
+        host3: 172.28.1.7ß
+```
+
+#### internal 关键字
+
+> `version 2`新增关键字
+
+默认情况下，`Docker`中的容器是通过一个寄主机桥接提供的网络连接外部网络。如果你想创建一个孤立的`overlay`网络，你可以设置该选项为true。
+
+#### labels 关键字
+
+> `version 2.1` 新增关键字
+
+为容器元数据添加[`Docker labels`标签](https://docs.docker.com/engine/userguide/labels-custom-metadata/)，可以是数组也可以是字典。
+
+建议使用反向dns符号来阻止你的标签和其他软件有冲突。
+
+例如：
+
+```yaml
+labels:
+  com.example.description: "Financial transaction network"
+  com.example.department: "Finance"
+  com.example.label-with-empty-value: ""
+
+labels:
+  - "com.example.description=Financial transaction network"
+  - "com.example.department=Finance"
+  - "com.example.label-with-empty-value"
+```
+
+#### external 关键字
+
+如果设置为`true`，则指定这个网络为`docker-compose up`命令控制范围之外的网络。docker-compose不会试图创建它，如果在容器使用它的时候发现其并不存在则会报错。
+
+`external` 关键字不能与其它网络关键字混用，包括`driver`、 `driver_opts`、 `group_add`、 `ipam`和 `internal`。
+
+例如：
+
+```yaml
+version: '2'
+
+services:
+  proxy:
+    build: ./proxy
+    networks:
+      - outside
+      - default
+  app:
+    build: ./app
+    networks:
+      - default
+
+networks:
+  outside:
+    external: true
+```
+
+
+
+
