@@ -3247,18 +3247,15 @@ CMD ["/run.sh"]
 > RUN ["executable", "param1", "param2"] 
 
 * RUN <command> 方式相当于调用“/bin/sh -c” 执行后续“command” 
-
 * RUN ["executable", "param1", "param2"] 方式将会调用exec执行，以避免有些时候shell方式执行时的传递参数问题，而且有些基础镜像可能不包含/bin/sh。
-
 * RUN ["executable", "param1", "param2"] 方式会被解析为一个 JSON 数组，所以必须使用双引号而不是单引号。exec 方式不会调用一个命令 shell，所以也就不会继承相应的变量，
 
   * RUN [ "echo", "$HOME" ] 不会达到传递变量的目的
 
   * RUN [ "sh", "-c", "echo", "$HOME" ] 才是正确的方法
-
 * RUN指令会在一个新的容器中执行任何命令，然后把执行后的改变提交到当前镜像，提交后的镜像会被用于Dockerfile中定义的下一步操作，RUN中定义的命令会按顺序执行并提交，这正是Docker廉价的提交和可以基于镜像的任何一个历史点创建容器的好处，就像版本控制工具一样。
-
 * RUN 产生的缓存在下一次构建的时候是不会失效的，会被重用。可以使用 “--no-cache” 选项，即 “docker build --no-cache”，如此便不会缓存。
+* RUN是在构建镜像阶段运行的命令。当我们build一个docker镜像时，它其实是存在一个运行时，这个运行时主要是服务于构建，那么在这个构建运行时里，我们可以运行命令，在我们的镜像上加上一层依赖。也就是说RUN的结果会反应在镜像里。
 
 #### CMD
 
@@ -3267,18 +3264,13 @@ CMD ["/run.sh"]
 > CMD command param1 param2
 
 * CMD ["executable", "param1", "param2"] 将会调用exec执行，首选方式
-
 * CMD ["param1", "param2"] 当使用ENTRYPOINT指令时，为该指令传递默认参数
-
 * CMD command param1 param2 将会调用/bin/sh -c执行
-
 * CMD指令中指定的命令会在镜像运行时执行，在Dockerfile中只能存在一个，如果使用了多个CMD指令，则只有最后一个CMD指令有效。
-
 * CMD 的目的是为了在启动容器时提供一个默认的命令执行选项。如果用户启动容器时指定了运行的命令，则会覆盖掉 CMD 指定的命令。
-
 * 当出现ENTRYPOINT指令时，CMD中定义的内容会作为ENTRYPOINT指令的默认参数，也就是说可以使用CMD指令给ENTRYPOINT传递参数。
-
 * RUN和CMD都是执行命令，他们的差异在于RUN中定义的命令会在执行docker build命令创建镜像时执行，而CMD中定义的命令会在执行docker run命令运行镜像时执行，另外使用第一种语法也就是调用exec执行时，命令必须为绝对路径。
+* Dockerfile里定义的CMD会被docker run 传入的指令所覆盖。
 
 #### LABEL
 
@@ -3319,16 +3311,12 @@ CMD ["/run.sh"]
 > ENTRYPOINT command param1 param2
 
 * ENTRYPOINT ["executable", "param1", "param2"] 将会调用exec执行，首选方式
-
 * ENTRYPOINT command param1 param2 将会调用/bin/sh -c执行
-
 * ENTRYPOINT指令中指定的命令会在镜像运行时执行，在Dockerfile中只能存在一个，如果使用了多个则只有最后一个指令有效。
-
 * ENTRYPOINT指令中指定的命令(exec执行的方式)可以通过docker run来传递参数，例如docker run -l启动的容器将会把-l参数传递给ENTRYPOINT指令定义的命令并会覆盖CMD指令中定义的默认参数(如果有的话)，但不会覆盖该指令定义的参数，例如ENTRYPOINT ["ls","-a"]，CMD ["/etc"],当通过docker run 启动容器时该容器会运行ls -a /etc命令，当使用docker run  -l启动时该容器会运行ls -a -l命令，-l参数会覆盖CMD指令中定义的/etc参数。
-
 * 当使用ENTRYPOINT指令时生成的镜像运行时只会执行该指令指定的命令。
-
 * 当出现ENTRYPOINT指令时CMD指令只可能(当ENTRYPOINT指令使用exec方式执行时)被当做ENTRYPOINT指令的参数使用，其他情况则会被忽略。
+* 如果在一个Dockerfile里定义了Entrypoint, 那么 docker run时传入的指令，其实都会被当做Entrypoint的参数。
 
 #### VOLUME
 

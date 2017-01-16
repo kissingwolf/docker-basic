@@ -1502,6 +1502,46 @@ networks:
     external: true
 ```
 
+## Docker Compose 工作原理
 
+在近些年的商业技术发展中，微服务架构潜移默化的改变着应用的部署方式，其提倡将应用分割成一系列细小的服务，每个服务专注于单一业务功能，服务之间采用轻量级通信机制相互沟通。对应的数据库解决方案也在发生着变化，多种持久化混合方案提倡将数据存放在最适合的数据库类型中（关系型、非关系型和对象型等），而传统的数据库解决方案将数据存在在同一个数据库类型中，并且不同类型的数据以单独的服务为运行单位。服务数量的增加也就意味着运行节点的增加，对应到容器领域，就是容器数量的增多，逐渐增加的容器数量也带来了容器部署、运行及管理带来了挑战。`Docker Compose`的出现解决多个容器部署的问题并提高了多个容器解决方案的可移植性。
+
+`Docker Compose`将所管理的对象分为三层：工程（project）、服务（service）以及容器（container），这三个对象概念我们在前面介绍过。
+
+### 工程（Project）
+
+`Docker Compose`运行目录下的所有文件组成一个工程，若无特殊指定工程名即为当前目录名。
+
+工程(Porject)目录下包含docker-compose.yml、extends文件或环境变量文件等，最主要的就是`docker-compose.yml`配置文件。前面我们已经详细介绍了其配置项目。
+
+### 服务（Service）
+
+一个工程（Project）当中可包含多个服务（Service），每个服务（Service）中定义了容器运行的镜像、参数和依赖关系。
+
+### 容器（Container）
+
+一个服务（Service）当中可包括多个容器（Container）实例，`Docker Compose`并没有解决负载均衡的问题，因此需要借助其他工具实现服务发现及负载均衡。
+
+### 编配文件（`docker-compose.yml`）
+
+`Docker Compose`的工程配置文件默认为`docker-compose.yml`(具体配置内容在前面有详细讲解），可通过环境变量`COMPOSE_FILE`或`-f`参数自定义配置文件名称和路径，其定义了多个有依赖关系的服务及每个服务运行的容器。以下是一个简单的配置文件：
+
+```yaml
+version: '2'
+services:
+  web:
+    image: kissingwolf/hello-world-nginx
+    volumes:
+      - ./html:/website_files
+  lb:
+    image: kissingwolf/haproxy
+    links:
+      - web
+    ports:
+      - "80:80"
+      - "1936:1936"
+    environment:
+      - SERVICE_NAMES=web
+```
 
 
